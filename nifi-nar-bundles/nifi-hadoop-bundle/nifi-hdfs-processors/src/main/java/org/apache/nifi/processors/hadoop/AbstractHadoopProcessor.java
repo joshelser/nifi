@@ -455,7 +455,12 @@ public abstract class AbstractHadoopProcessor extends AbstractProcessor {
             getLogger().info("Kerberos ticket age exceeds threshold [{} seconds] " +
                 "attempting to renew ticket for user {}", new Object[]{
               kerberosReloginThreshold, ugi.getUserName()});
-            ugi.checkTGTAndReloginFromKeytab();
+            ugi.doAs(new PrivilegedExceptionAction<Void>() {
+                public Void run() throws IOException {
+                    ugi.checkTGTAndReloginFromKeytab();
+                    return null;
+                }
+            });
             lastKerberosReloginTime = System.currentTimeMillis() / 1000;
             getLogger().info("Kerberos relogin successful or ticket still valid");
         } catch (IOException e) {
@@ -463,6 +468,10 @@ public abstract class AbstractHadoopProcessor extends AbstractProcessor {
             // meaning dfs operations would fail
             getLogger().error("Kerberos relogin failed", e);
             throw new ProcessException("Unable to renew kerberos ticket", e);
+        } catch (InterruptedException e) {
+            getLogger().error("Interrupted while performing Kerberos relogin", e);
+            Thread.currentThread().interrupt();
+            return;
         }
     }
 
